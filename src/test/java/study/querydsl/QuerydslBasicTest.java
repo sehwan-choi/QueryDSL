@@ -1,6 +1,7 @@
 package study.querydsl;
 
 import com.querydsl.core.QueryResults;
+import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import study.querydsl.entity.Member;
 import study.querydsl.entity.QMember;
+import study.querydsl.entity.QTeam;
 import study.querydsl.entity.Team;
 
 import javax.persistence.EntityManager;
@@ -17,6 +19,7 @@ import javax.persistence.EntityManager;
 import java.util.List;
 
 import static study.querydsl.entity.QMember.member;
+import static study.querydsl.entity.QTeam.team;
 
 @SpringBootTest
 @Transactional
@@ -176,5 +179,80 @@ public class QuerydslBasicTest {
         for (Member member : result) {
             System.out.println("member = " + member);
         }
+    }
+
+    @Test
+    public void paging1() {
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .orderBy(member.username.desc())
+                .offset(1)
+                .limit(2)
+                .fetch();
+
+        for (Member member : result) {
+            System.out.println("member = " + member);
+            System.out.println("    team = " + member.getTeam().getName());
+        }
+    }
+
+    @Test
+    public void paging2() {
+        QueryResults<Member> result = queryFactory
+                .selectFrom(member)
+                .orderBy(member.username.desc())
+                .offset(1)
+                .limit(2)
+                .fetchResults();
+
+        System.out.println("result.getTotal() = " + result.getTotal());
+        System.out.println("result.getLimit() = " + result.getLimit());
+        System.out.println("result.getOffset() = " + result.getOffset());
+        for (Member member : result.getResults()) {
+            System.out.println("member = " + member);
+            System.out.println("    team = " + member.getTeam().getName());
+        }
+    }
+
+    @Test
+    public void aggregation() {
+        List<Tuple> result = queryFactory
+                .select(member.count(),
+                        member.age.sum(),
+                        member.age.avg(),
+                        member.age.max(),
+                        member.age.min()
+                )
+                .from(member)
+                .fetch();
+
+        Tuple tuple = result.get(0);
+        System.out.println("count = " + tuple.get(member.count()));
+        System.out.println("age sum = " + tuple.get(member.age.sum()));
+        System.out.println("age avg = " + tuple.get(member.age.avg()));
+        System.out.println("age max = " + tuple.get(member.age.max()));
+        System.out.println("age min = " + tuple.get(member.age.min()));
+    }
+
+    /**+
+     * 팀의 이름과 각 팀의 평균 연령 구하기
+     */
+    @Test
+    public void group() {
+        List<Tuple> result = queryFactory
+                .select(team.name, member.age.avg())
+                .from(member)
+                .join(member.team, team)
+                .groupBy(team.name)
+                .fetch();
+
+        Tuple teamA = result.get(0);
+        Tuple teamB = result.get(1);
+
+        System.out.println("name = " + teamA.get(team.name));
+        System.out.println("    age avg = " + teamA.get(member.age.avg()));
+
+        System.out.println("name = " + teamB.get(team.name));
+        System.out.println("    age avg = " + teamB.get(member.age.avg()));
     }
 }
