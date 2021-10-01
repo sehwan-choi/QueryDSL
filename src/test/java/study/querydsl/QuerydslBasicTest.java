@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
 import study.querydsl.entity.Member;
 import study.querydsl.entity.QMember;
@@ -23,6 +24,7 @@ import static study.querydsl.entity.QTeam.team;
 
 @SpringBootTest
 @Transactional
+@Rollback(value = false)
 public class QuerydslBasicTest {
 
     @Autowired
@@ -255,4 +257,114 @@ public class QuerydslBasicTest {
         System.out.println("name = " + teamB.get(team.name));
         System.out.println("    age avg = " + teamB.get(member.age.avg()));
     }
+
+
+    /**
+     * 팀 A에 소속된 모든 회원 찾기
+     */
+    @Test
+    public void join() {
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .join(member.team, team)
+                .where(team.name.eq("teamA"))
+                .fetch();
+
+        for (Member member : result) {
+            System.out.println("member = " + member);
+            System.out.println("    TeamName = " + member.getTeam().getName());
+        }
+    }
+
+    @Test
+    public void leftJoin() {
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .leftJoin(member.team, team)
+                .where(team.name.eq("teamA"))
+                .fetch();
+
+        for (Member member : result) {
+            System.out.println("member = " + member);
+            System.out.println("    TeamName = " + member.getTeam().getName());
+        }
+    }
+
+    @Test
+    public void rightJoin() {
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .rightJoin(member.team, team)
+                .where(team.name.eq("teamA"))
+                .fetch();
+
+        for (Member member : result) {
+            System.out.println("member = " + member);
+            System.out.println("    TeamName = " + member.getTeam().getName());
+        }
+    }
+
+    /**
+     * 세타 조인(연관관계가 없는 필드로 조인)
+     * 회원의 이름이 팀 이름과 같은 회원 조회
+     */
+    @Test
+    public void thetaJoin() {
+        em.persist(new Member("teamA"));
+        em.persist(new Member("teamB"));
+
+        List<Member> result = queryFactory
+                .select(member)
+                .from(member, team)
+                .where(member.username.eq(team.name))
+                .fetch();
+
+        for (Member member : result) {
+            System.out.println("member = " + member.getUsername());
+        }
+    }
+
+
+    /**
+     * 예) 회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회
+     * JPQL: SELECT m, t FROM Member m LEFT JOIN m.team t on t.name = 'teamA'
+     * SQL: SELECT m.*, t.* FROM Member m LEFT JOIN Team t ON m.TEAM_ID=t.id and t.name='teamA'
+     */
+    @Test
+    public void join_on_filtering() {
+        List<Tuple> result = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(member.team, team)
+                //.on(team.name.eq("teamA"),member.username.eq("member1"))
+                .on(team.name.eq("teamA"))
+                .fetch();
+
+        for (Tuple tuple : result) {
+            System.out.println("tuple = " + tuple);
+        }
+    }
+
+    /**
+     * 2. 연관관계 없는 엔티티 외부 조인
+     * 예) 회원의 이름과 팀의 이름이 같은 대상 외부 조인
+     * JPQL: SELECT m, t FROM Member m LEFT JOIN Team t on m.username = t.name
+     * SQL: SELECT m.*, t.* FROM Member m LEFT JOIN Team t ON m.username = t.name
+     */
+    @Test
+    public void thetaJoin_on() {
+        em.persist(new Member("teamA"));
+        em.persist(new Member("teamB"));
+
+        List<Tuple> result = queryFactory
+                .select(member, team)
+                .from(member)
+                .leftJoin(team).on(member.username.eq(team.name))
+                .fetch();
+
+        for (Tuple data : result) {
+            System.out.println("member = " + data);
+        }
+    }
+
 }
